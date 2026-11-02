@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Harpagia School Solver</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: exercise-book page. Screen capture on the left, the 4x4 board and its taps on the right; stacks on phones. */
+:root{
+  --paper:#f5f7fb;
+  --grid:rgba(52,92,170,.085);
+  --panel:#ffffff;
+  --ink:#17213a;
+  --muted:#5a6680;
+  --rule:#d6ddeb;
+  --accent:#2c53c4;
+  --accent-ink:#ffffff;
+  --accent-soft:rgba(44,83,196,.1);
+  --margin:#d6544e;
+  --warn:#b7791f;
+  --t-neg:#b83a2c; --t-neg-ink:#fff;
+  --t-zero:#c49a0a; --t-zero-ink:#241c00;
+  --t-pos:#1e8a4a; --t-pos-ink:#fff;
+  --f-display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --cell:clamp(52px, 15vw, 78px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#111722; --grid:rgba(255,255,255,.035); --panel:#182030; --ink:#e7ecf5; --muted:#9ba8be;
+    --rule:#2a3447; --accent:#8eaeff; --accent-ink:#0d1526; --accent-soft:rgba(142,174,255,.14);
+    --margin:#e2716c; --warn:#e2b04f; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111722; --grid:rgba(255,255,255,.035); --panel:#182030; --ink:#e7ecf5; --muted:#9ba8be;
+  --rule:#2a3447; --accent:#8eaeff; --accent-ink:#0d1526; --accent-soft:rgba(142,174,255,.14);
+  --margin:#e2716c; --warn:#e2b04f; color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  margin:0; font:15px/1.5 var(--f-body); color:var(--ink);
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:22px 22px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:20px 40px;
+}
+.wrap{max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
+button,input,label{font:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+header{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:8px 24px; padding-bottom:12px; border-bottom:2px solid var(--margin)}
+h1{font:800 clamp(26px,4vw,36px)/1.05 var(--f-display); letter-spacing:-.01em; margin:0; text-wrap:balance}
+.sub{margin:4px 0 0; color:var(--muted); max-width:62ch}
+.cycle{font:500 13px var(--f-mono); color:var(--muted); display:flex; align-items:center; gap:6px; white-space:nowrap}
+.chip{display:inline-grid; place-items:center; min-width:30px; height:24px; padding:0 6px; border-radius:6px; font:700 12px var(--f-mono)}
+.neg{background:var(--t-neg); color:var(--t-neg-ink)}
+.zero{background:var(--t-zero); color:var(--t-zero-ink)}
+.pos{background:var(--t-pos); color:var(--t-pos-ink)}
+
+.layout{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:18px; align-items:start}
+@media (max-width:900px){ .layout{grid-template-columns:minmax(0,1fr)} }
+.panel{background:var(--panel); border:1px solid var(--rule); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px; min-width:0}
+.panel-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+h2{font:700 19px/1.2 var(--f-display); margin:0; letter-spacing:.005em}
+.pill{font:500 12px var(--f-mono); color:var(--muted); border:1px solid var(--rule); border-radius:999px; padding:2px 10px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis}
+.pill.live{color:var(--t-pos); border-color:currentColor}
+
+.toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.btn{appearance:none; border:1px solid var(--rule); background:var(--panel); color:var(--ink); border-radius:9px; padding:8px 14px; cursor:pointer; font-weight:700; line-height:1.2}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn.small{padding:5px 10px; font-size:13px}
+.linkbtn{appearance:none; border:0; background:none; color:var(--accent); cursor:pointer; padding:0; font-weight:700; text-decoration:underline; text-underline-offset:2px}
+.toggle{display:inline-flex; align-items:center; gap:6px; color:var(--muted); cursor:pointer; user-select:none}
+.toggle input{accent-color:var(--accent); width:16px; height:16px}
+
+.note{border-left:3px solid var(--warn); background:var(--accent-soft); padding:8px 12px; border-radius:0 8px 8px 0; color:var(--ink); font-size:14px}
+.note b{font-weight:700}
+
+.stage{position:relative; border:1px dashed var(--rule); border-radius:10px; min-height:280px; display:flex; align-items:center; justify-content:center; background:var(--paper); overflow:hidden}
+.stage.drop{border-color:var(--accent); background:var(--accent-soft)}
+.stage canvas{display:block; touch-action:none; cursor:crosshair}
+.stage canvas:focus-visible{outline:2px solid var(--accent)}
+.empty{text-align:center; color:var(--muted); padding:24px; max-width:42ch; display:flex; flex-direction:column; gap:6px; align-items:center}
+.empty strong{color:var(--ink); font-size:16px}
+kbd{font:500 12px var(--f-mono); border:1px solid var(--rule); border-bottom-width:2px; border-radius:5px; padding:0 5px; background:var(--panel); color:var(--ink)}
+.hint{margin:0; color:var(--muted); font-size:14px}
+.calib{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; font-size:13px; color:var(--muted); border-top:1px solid var(--rule); padding-top:10px}
+.calib .dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; vertical-align:1px}
+.calib .dot.on{background:var(--t-pos)}
+
+/* Board */
+.board-wrap{display:flex; justify-content:center; overflow-x:auto; padding:4px 0}
+.bgrid{display:grid; grid-template-columns:44px repeat(4, var(--cell)); grid-template-rows:44px repeat(4, var(--cell)); gap:10px}
+.ind{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font:500 11px var(--f-mono); color:var(--muted)}
+.ind.row{flex-direction:column}
+.bub{display:grid; place-items:center; width:26px; height:26px; border-radius:50%; font:700 13px var(--f-mono); border:1px dashed var(--rule); color:var(--muted)}
+.bub.on{background:var(--accent); border:0; color:var(--accent-ink)}
+.cell{appearance:none; border:0; border-radius:12px; cursor:pointer; font:700 clamp(18px,4.4vw,24px) var(--f-mono); box-shadow:inset 0 -4px 0 rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.18); position:relative; transition:transform .08s}
+.cell:active{transform:scale(.96)}
+.cell.amb::after{content:""; position:absolute; inset:-5px; border:2px dashed var(--warn); border-radius:15px; pointer-events:none}
+.cell.fixed::before{content:"fixed"; position:absolute; top:4px; right:6px; font:500 9px var(--f-mono); letter-spacing:.06em; text-transform:uppercase; opacity:.8}
+.board-actions{display:flex; flex-wrap:wrap; gap:8px; justify-content:center}
+
+.result{border-top:1px solid var(--rule); padding-top:14px; display:flex; flex-direction:column; gap:14px}
+.score-row{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.score{font:800 46px/1 var(--f-display); font-variant-numeric:tabular-nums}
+.score small{font:700 18px var(--f-mono); color:var(--muted); margin-left:2px}
+.cap{font-size:13px; color:var(--muted); margin-top:4px}
+.taps{font:700 14px var(--f-mono); background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:6px 12px}
+.label{font:700 11px var(--f-body); text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:0 0 8px}
+.steps{list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px}
+.steps li{display:flex; align-items:center; gap:8px; border:1px solid var(--rule); border-radius:9px; padding:6px 10px; font-weight:700}
+.steps li span{font:700 12px var(--f-mono); color:var(--accent)}
+.none{color:var(--muted); font-style:italic; margin:0}
+.after{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.mini{display:grid; grid-template-columns:repeat(4, 26px); gap:4px}
+.mini div{height:26px; border-radius:5px; display:grid; place-items:center; font:700 10px var(--f-mono)}
+.after p{margin:0; color:var(--muted); font-size:13px; max-width:30ch}
+
+details.help{background:var(--panel); border:1px solid var(--rule); border-radius:14px; padding:12px 16px}
+details.help summary{cursor:pointer; font:700 16px var(--f-display)}
+.help-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:4px 28px; margin-top:8px}
+.help-grid h3{font:700 14px var(--f-body); margin:10px 0 4px}
+.help-grid p, .help-grid li{color:var(--muted); font-size:14px; margin:0 0 6px; max-width:62ch}
+.help-grid ul{margin:0; padding-left:18px}
+footer{color:var(--muted); font-size:12px; text-align:center}
+video{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+@media (prefers-reduced-motion: reduce){ .cell{transition:none} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Harpagia School Solver</h1>
+      <p class="sub">Capture your mirrored iPhone screen, box the 4×4 board, and get the row and column taps for the highest score.</p>
+    </div>
+    <div class="cycle" aria-label="One tap cycles each tile">1 tap: <span class="chip neg">−1</span>→<span class="chip pos">+1</span>→<span class="chip zero">0</span>→<span class="chip neg">−1</span></div>
+  </header>
+
+  <main class="layout">
+    <section class="panel" aria-labelledby="screenH">
+      <div class="panel-head">
+        <h2 id="screenH">Screen</h2>
+        <span class="pill" id="srcStatus">No screen yet</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" id="btnCapture" type="button">Capture window</button>
+        <button class="btn" id="btnStop" type="button" hidden>Stop capture</button>
+        <label class="btn" for="fileInput">Open screenshot</label>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+      <div class="note" id="capNote" hidden></div>
+      <div class="stage" id="stage">
+        <canvas id="view" tabindex="0" aria-label="Captured screen. Drag to draw a box around the 16 tiles." hidden></canvas>
+        <div class="empty" id="emptyStage">
+          <strong>Show the game here</strong>
+          <span>Start a capture and pick the iPhone Mirroring window, or paste a screenshot with <kbd>⌘</kbd> <kbd>V</kbd>. You can also drop an image file on this box.</span>
+        </div>
+        <video id="video" muted playsinline autoplay></video>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" id="btnRead" type="button" disabled>Read board</button>
+        <label class="toggle"><input type="checkbox" id="chkAuto"> Keep reading while capturing</label>
+        <label class="toggle"><input type="checkbox" id="chkZoom"> Zoom to board</label>
+      </div>
+      <p class="hint" id="boxHint">Drag a box around the 16 tiles, edge to edge. Drag inside the box to move it, drag a corner to resize, or use the arrow keys. The box is remembered.</p>
+      <div class="calib">
+        <span><span class="dot" id="calibDot"></span><span id="calibText">Reading by tile colour</span></span>
+        <button class="linkbtn" id="btnForget" type="button" hidden>Forget what it learned</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="boardH">
+      <div class="panel-head">
+        <h2 id="boardH">Board</h2>
+        <span class="pill" id="boardOrigin">Example board</span>
+      </div>
+      <div class="board-wrap"><div class="bgrid" id="board" role="grid" aria-label="School board"></div></div>
+      <p class="hint" style="text-align:center">Tap a tile to fix it. Fixes teach the reader what your tiles look like.</p>
+      <div class="board-actions">
+        <button class="btn small" id="btnClear" type="button">Clear to zeros</button>
+        <button class="btn small" id="btnExample" type="button">Load example</button>
+      </div>
+      <div class="result" id="result" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <details class="help">
+    <summary>Setup and tips</summary>
+    <div class="help-grid">
+      <div>
+        <h3>Capturing the iPhone screen</h3>
+        <ul>
+          <li>On a Mac, open iPhone Mirroring and start the School minigame.</li>
+          <li>Press Capture window and choose the iPhone Mirroring window. Chrome, Edge and Safari all support window capture.</li>
+          <li>Keep the game open. The board reshuffles if you minimize the game, which is why reading it from a mirror works well.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Using a screenshot instead</h3>
+        <ul>
+          <li>Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>4</kbd>, then <kbd>Space</kbd>, and click the mirroring window. That copies it to the clipboard.</li>
+          <li>Come back here and press <kbd>⌘</kbd><kbd>V</kbd>. The board is read straight away if the box is already set.</li>
+          <li>Live capture is blocked when this page is viewed inside Claude. The standalone file captures normally.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>How it reads and solves</h3>
+        <ul>
+          <li>Each tile is matched by colour against red (−1), gold (0) and green (+1). Unsure tiles get a dashed outline.</li>
+          <li>When you fix a tile, it remembers that tile's look. Once it has seen all three values, it matches the whole tile, digits included.</li>
+          <li>The solver checks every combination of row and column taps and picks the highest score, then the fewest taps. Tap order does not matter.</li>
+          <li>Not every board can reach 14 or more. The score shown is the best this board allows.</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+  <footer>Fan-made helper based on the School tool at atlasharp.github.io/Harpagia-Minigame-Helper. Not affiliated with the game.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- storage (optional; page works without it) ----------
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k){ try { localStorage.removeItem(k); } catch {} }
+  };
+  const K_RECT = 'school.rect.v1', K_SAMPLES = 'school.samples.v1';
+  const SESSION = Math.random().toString(36).slice(2, 8);
+
+  // ---------- solver ----------
+  // One tap on a row or column moves every tile in it one step: -1 -> +1 -> 0 -> -1.
+  const CYCLE = [-1, 1, 0];
+  const cyc = (v, t) => CYCLE[(CYCLE.indexOf(v) + t) % 3];
+  const VALUES = [-1, 0, 1];
+  const label = (v) => v === 1 ? '+1' : (v === 0 ? '0' : '−1');
+  const cls = (v) => v === 1 ? 'pos' : (v === 0 ? 'zero' : 'neg');
+
+  function solve(g){
+    let best = null;
+    for (let code = 0; code < 81; code++){
+      const rows = [code % 3, ((code / 3) | 0) % 3, ((code / 9) | 0) % 3, ((code / 27) | 0) % 3];
+      let score = 0, taps = rows[0] + rows[1] + rows[2] + rows[3];
+      const cols = [];
+      for (let j = 0; j < 4; j++){
+        let bs = -Infinity, bk = 0;
+        for (let k = 0; k < 3; k++){
+          let s = 0;
+          for (let i = 0; i < 4; i++) s += cyc(g[i][j], rows[i] + k);
+          if (s > bs){ bs = s; bk = k; }           // ties keep the smaller tap count
+        }
+        cols.push(bk); score += bs; taps += bk;
+      }
+      if (!best || score > best.score || (score === best.score && taps < best.taps)) best = { score, taps, rows, cols };
+    }
+    best.after = g.map((row, i) => row.map((v, j) => cyc(v, best.rows[i] + best.cols[j])));
+    return best;
+  }
+
+  // ---------- state ----------
+  const EXAMPLE = [[-1,0,0,0],[-1,1,-1,1],[1,0,1,0],[-1,0,0,1]];
+  let board = EXAMPLE.map(r => r.slice());
+  let origin = 'example';            // 'example' | 'manual' | 'read'
+  let solution = solve(board);
+  let source = null;                 // { el, kind: 'video'|'image', w, h }
+  let stream = null;
+  let rect = null;                   // board box in source pixels
+  let lastRead = null;               // { id, feats, pred, amb, locked:Set }
+  let readSeq = 0;
+  let samples = store.get(K_SAMPLES, []);
+  if (!Array.isArray(samples)) samples = [];
+
+  // ---------- tile reading ----------
+  const WORK = 256, CELL = 64, INSET = 0.2, TH = 10;
+  const work = document.createElement('canvas');
+  work.width = work.height = WORK;
+  const wctx = work.getContext('2d', { willReadFrequently: true });
+  const PALETTE = { '-1': [184, 58, 44], '0': [196, 154, 10], '1': [30, 138, 74] };
+  samples = samples.filter(s => s && VALUES.includes(s.v) && Array.isArray(s.m) && Array.isArray(s.t) && s.t.length === TH * TH * 3);
+
+  function sourceReady(){
+    if (!source) return false;
+    if (source.kind === 'video') return source.el.readyState >= 2 && source.el.videoWidth > 0;
+    return true;
+  }
+  function extract(){
+    wctx.imageSmoothingEnabled = true;
+    wctx.imageSmoothingQuality = 'high';
+    wctx.clearRect(0, 0, WORK, WORK);
+    wctx.drawImage(source.el, rect.x, rect.y, rect.w, rect.h, 0, 0, WORK, WORK);
+    const d = wctx.getImageData(0, 0, WORK, WORK).data;
+    const off = Math.round(CELL * INSET), span = CELL - 2 * off;
+    const feats = [];
+    for (let i = 0; i < 4; i++){
+      for (let j = 0; j < 4; j++){
+        const bx = j * CELL + off, by = i * CELL + off;
+        const sums = new Float64Array(TH * TH * 3), cnt = new Uint32Array(TH * TH);
+        let mr = 0, mg = 0, mb = 0, n = 0;
+        for (let y = 0; y < span; y++){
+          const ty = ((y * TH) / span) | 0;
+          for (let x = 0; x < span; x++){
+            const tx = ((x * TH) / span) | 0;
+            const p = ((by + y) * WORK + (bx + x)) * 4;
+            const r = d[p], g = d[p + 1], b = d[p + 2];
+            mr += r; mg += g; mb += b; n++;
+            const k = (ty * TH + tx) * 3;
+            sums[k] += r; sums[k + 1] += g; sums[k + 2] += b; cnt[ty * TH + tx]++;
+          }
+        }
+        const t = new Array(TH * TH * 3);
+        for (let k = 0; k < TH * TH; k++){
+          for (let c = 0; c < 3; c++) t[k * 3 + c] = Math.round(sums[k * 3 + c] / Math.max(1, cnt[k]));
+        }
+        feats.push({ m: [Math.round(mr / n), Math.round(mg / n), Math.round(mb / n)], t });
+      }
+    }
+    return feats;
+  }
+  function colorDist(a, b){
+    const rm = (a[0] + b[0]) / 2, dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+    return Math.sqrt((2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db);
+  }
+  // Compare two tile thumbnails, allowing a small slide in any direction so a digit
+  // that sits a few pixels off-centre in one cell still matches the same digit elsewhere.
+  const SHIFT = 2;
+  function thumbDist(a, b){
+    let best = Infinity;
+    for (let sy = -SHIFT; sy <= SHIFT; sy++){
+      for (let sx = -SHIFT; sx <= SHIFT; sx++){
+        let s = 0, n = 0;
+        const y0 = Math.max(0, -sy), y1 = Math.min(TH, TH - sy), x0 = Math.max(0, -sx), x1 = Math.min(TH, TH - sx);
+        for (let y = y0; y < y1; y++){
+          for (let x = x0; x < x1; x++){
+            const ia = (y * TH + x) * 3, ib = ((y + sy) * TH + (x + sx)) * 3;
+            const d0 = a[ia] - b[ib], d1 = a[ia + 1] - b[ib + 1], d2 = a[ia + 2] - b[ib + 2];
+            s += d0 * d0 + d1 * d1 + d2 * d2; n += 3;
+          }
+        }
+        const d = Math.sqrt(s / n) + 1.5 * (Math.abs(sx) + Math.abs(sy));
+        if (d < best) best = d;
+      }
+    }
+    return best;
+  }
+  const learnedAll = () => VALUES.every(v => samples.some(s => s.v === v));
+  function classify(f){
+    const full = learnedAll();
+    const ds = VALUES.map(v => {
+      const mine = samples.filter(s => s.v === v);
+      let d;
+      if (full) d = Math.min(...mine.map(s => thumbDist(f.t, s.t)));
+      else if (mine.length) d = Math.min(...mine.map(s => colorDist(f.m, s.m)));
+      else d = colorDist(f.m, PALETTE[v]);
+      return { v, d };
+    }).sort((a, b) => a.d - b.d);
+    const margin = (ds[1].d - ds[0].d) / (ds[1].d + 1e-6);
+    return { v: ds[0].v, amb: margin < 0.25 };
+  }
+  function readNow(){
+    if (!sourceReady() || !rect) return null;
+    let feats;
+    try { feats = extract(); } catch { return null; }
+    const res = feats.map(classify);
+    return { feats, pred: res.map(r => r.v), amb: res.map(r => r.amb) };
+  }
+  function applyRead(r){
+    lastRead = { id: ++readSeq, feats: r.feats, pred: r.pred, amb: r.amb, locked: new Set() };
+    board = [0, 1, 2, 3].map(i => r.pred.slice(i * 4, i * 4 + 4));
+    origin = 'read';
+    resolve();
+  }
+  function reclassify(){
+    if (!lastRead) return;
+    lastRead.feats.forEach((f, k) => {
+      const c = classify(f);
+      lastRead.pred[k] = c.v; lastRead.amb[k] = c.amb;
+      if (!lastRead.locked.has(k)) board[k >> 2][k & 3] = c.v;
+    });
+  }
+  function addSample(s){
+    samples = samples.filter(x => x.src !== s.src);
+    samples.push(s);
+    const per = {}, kept = [];
+    for (let i = samples.length - 1; i >= 0; i--){
+      const x = samples[i];
+      per[x.v] = (per[x.v] || 0) + 1;
+      if (per[x.v] <= 16) kept.unshift(x);
+    }
+    samples = kept;
+    store.set(K_SAMPLES, samples);
+  }
+  function doRead(){
+    const r = readNow();
+    if (!r) return false;
+    applyRead(r);
+    renderAll();
+    return true;
+  }
+
+  // ---------- board UI ----------
+  const boardEl = $('board');
+  function resolve(){ solution = solve(board); }
+  function renderBoard(){
+    const s = solution;
+    const parts = ['<div aria-hidden="true"></div>'];
+    for (let j = 0; j < 4; j++){
+      const t = s.cols[j];
+      parts.push(`<div class="ind" aria-label="Column ${j + 1}: ${t} taps"><span>C${j + 1}</span><span class="bub${t ? ' on' : ''}">${t || '·'}</span></div>`);
+    }
+    for (let i = 0; i < 4; i++){
+      const t = s.rows[i];
+      parts.push(`<div class="ind row" aria-label="Row ${i + 1}: ${t} taps"><span>R${i + 1}</span><span class="bub${t ? ' on' : ''}">${t || '·'}</span></div>`);
+      for (let j = 0; j < 4; j++){
+        const v = board[i][j], k = i * 4 + j;
+        const amb = lastRead && origin === 'read' && !lastRead.locked.has(k) && lastRead.amb[k];
+        const fixed = lastRead && origin === 'read' && lastRead.locked.has(k);
+        parts.push(`<button type="button" class="cell ${cls(v)}${amb ? ' amb' : ''}${fixed ? ' fixed' : ''}" data-i="${i}" data-j="${j}" aria-label="Row ${i + 1}, column ${j + 1}: ${label(v)}${amb ? ', unsure' : ''}">${label(v)}</button>`);
+      }
+    }
+    boardEl.innerHTML = parts.join('');
+    const o = $('boardOrigin');
+    if (origin === 'example') o.textContent = 'Example board';
+    else if (origin === 'manual') o.textContent = 'Entered by hand';
+    else {
+      const fixes = lastRead ? lastRead.locked.size : 0;
+      o.textContent = fixes ? `Read from screen · ${fixes} fixed` : 'Read from screen';
+    }
+  }
+  function renderResult(){
+    const s = solution;
+    const steps = [];
+    s.rows.forEach((t, i) => { if (t) steps.push(`<li>Row ${i + 1}<span>×${t}</span></li>`); });
+    s.cols.forEach((t, j) => { if (t) steps.push(`<li>Column ${j + 1}<span>×${t}</span></li>`); });
+    const mini = s.after.flat().map(v => `<div class="${cls(v)}">${label(v)}</div>`).join('');
+    $('result').innerHTML = `
+      <div class="score-row">
+        <div><div class="score">${s.score}<small>/16</small></div><div class="cap">Best possible score for this board</div></div>
+        <div class="taps">${s.taps} ${s.taps === 1 ? 'tap' : 'taps'}</div>
+      </div>
+      <div>
+        <p class="label">Taps to make</p>
+        ${steps.length ? `<ul class="steps">${steps.join('')}</ul>` : '<p class="none">No taps needed. This board is already at its best.</p>'}
+      </div>
+      <div class="after"><div class="mini" aria-label="Board after taps">${mini}</div><p>Board after these taps. Order does not matter.</p></div>`;
+  }
+  boardEl.addEventListener('click', (e) => {
+    const b = e.target.closest('.cell');
+    if (!b) return;
+    const i = +b.dataset.i, j = +b.dataset.j, k = i * 4 + j;
+    board[i][j] = cyc(board[i][j], 1);
+    if (lastRead && origin === 'read'){
+      lastRead.locked.add(k);
+      const f = lastRead.feats[k];
+      addSample({ v: board[i][j], m: f.m, t: f.t, src: `${SESSION}:${lastRead.id}:${k}` });
+      reclassify();
+    } else {
+      origin = 'manual';
+      lastRead = null;
+    }
+    resolve();
+    renderAll();
+    const again = boardEl.querySelector(`.cell[data-i="${i}"][data-j="${j}"]`);
+    if (again) again.focus();
+  });
+  $('btnClear').addEventListener('click', () => { board = [0,1,2,3].map(() => [0,0,0,0]); origin = 'manual'; lastRead = null; resolve(); renderAll(); });
+  $('btnExample').addEventListener('click', () => { board = EXAMPLE.map(r => r.slice()); origin = 'example'; lastRead = null; resolve(); renderAll(); });
+
+  function renderCalib(){
+    const counts = VALUES.map(v => samples.filter(s => s.v === v).length);
+    const total = counts.reduce((a, b) => a + b, 0);
+    const full = learnedAll();
+    $('calibDot').classList.toggle('on', full);
+    $('calibText').textContent = total === 0
+      ? 'Reading by tile colour'
+      : `${full ? 'Matching learned tiles' : 'Reading by colour, plus fixes'} · learned −1: ${counts[0]}, 0: ${counts[1]}, +1: ${counts[2]}`;
+    $('btnForget').hidden = total === 0;
+  }
+  $('btnForget').addEventListener('click', () => {
+    samples = []; store.del(K_SAMPLES);
+    if (lastRead){ lastRead.locked.clear(); reclassify(); resolve(); }
+    renderAll();
+  });
+
+  // ---------- screen view ----------
+  const stage = $('stage'), view = $('view'), vctx = view.getContext('2d'), video = $('video');
+  let V = null, frozenView = null, drag = null;
+
+  function clampRect(r){
+    if (!source) return r;
+    const w = Math.max(8, Math.min(r.w, source.w)), h = Math.max(8, Math.min(r.h, source.h));
+    return { x: Math.max(0, Math.min(r.x, source.w - w)), y: Math.max(0, Math.min(r.y, source.h - h)), w, h };
+  }
+  function saveRect(){ if (rect && source) store.set(K_RECT, { x: rect.x / source.w, y: rect.y / source.h, w: rect.w / source.w, h: rect.h / source.h }); }
+  function loadRect(){
+    const f = store.get(K_RECT, null);
+    if (!f || !source || typeof f.x !== 'number') return null;
+    return clampRect({ x: f.x * source.w, y: f.y * source.h, w: f.w * source.w, h: f.h * source.h });
+  }
+  function computeView(){
+    if (frozenView) return frozenView;
+    if (!source) return null;
+    if ($('chkZoom').checked && rect){
+      const px = rect.w * 0.35, py = rect.h * 0.45;
+      const x = Math.max(0, rect.x - px), y = Math.max(0, rect.y - py);
+      return { x, y, w: Math.min(source.w - x, rect.w + 2 * px), h: Math.min(source.h - y, rect.h + 2 * py) };
+    }
+    return { x: 0, y: 0, w: source.w, h: source.h };
+  }
+  function layoutView(){
+    const v = computeView();
+    if (!v) return;
+    const stageW = Math.max(120, stage.clientWidth - 2);
+    const maxH = Math.max(260, Math.min(window.innerHeight * 0.68, 760));
+    const s = Math.min(stageW / v.w, maxH / v.h);
+    const cssW = Math.max(1, Math.floor(v.w * s)), cssH = Math.max(1, Math.floor(v.h * s));
+    const dpr = window.devicePixelRatio || 1;
+    const pw = Math.round(cssW * dpr), ph = Math.round(cssH * dpr);
+    if (view.width !== pw) view.width = pw;
+    if (view.height !== ph) view.height = ph;
+    view.style.width = cssW + 'px';
+    view.style.height = cssH + 'px';
+    V = { ...v, s, cssW, cssH, dpr };
+  }
+  const toCss = (x, y) => [(x - V.x) * V.s, (y - V.y) * V.s];
+
+  function pill(ctx, x, y, text, fill, ink){
+    ctx.font = '700 12px ui-monospace, Menlo, monospace';
+    const w = Math.max(20, ctx.measureText(text).width + 12), h = 20;
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 10); else ctx.rect(x - w / 2, y - h / 2, w, h);
+    ctx.fill();
+    ctx.fillStyle = ink;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y + 0.5);
+  }
+  const TILE_FILL = { '-1': '#b83a2c', '0': '#c49a0a', '1': '#1e8a4a' };
+  const TILE_INK = { '-1': '#fff', '0': '#241c00', '1': '#fff' };
+
+  function drawOverlay(ctx){
+    const [bx, by] = toCss(rect.x, rect.y);
+    const bw = rect.w * V.s, bh = rect.h * V.s;
+    // dim everything outside the box
+    ctx.fillStyle = 'rgba(8,12,20,0.42)';
+    ctx.fillRect(0, 0, V.cssW, Math.max(0, by));
+    ctx.fillRect(0, by + bh, V.cssW, Math.max(0, V.cssH - by - bh));
+    ctx.fillRect(0, by, Math.max(0, bx), bh);
+    ctx.fillRect(bx + bw, by, Math.max(0, V.cssW - bx - bw), bh);
+    // box and grid
+    ctx.save();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.strokeRect(bx, by, bw, bh);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#7fb2ff'; ctx.strokeRect(bx, by, bw, bh);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(127,178,255,0.75)'; ctx.lineWidth = 1;
+    for (let k = 1; k < 4; k++){
+      ctx.beginPath(); ctx.moveTo(bx + bw * k / 4, by); ctx.lineTo(bx + bw * k / 4, by + bh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx, by + bh * k / 4); ctx.lineTo(bx + bw, by + bh * k / 4); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    // sampling areas (the part of each tile that is read)
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    const cw = bw / 4, ch = bh / 4;
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
+      ctx.strokeRect(bx + j * cw + cw * INSET, by + i * ch + ch * INSET, cw * (1 - 2 * INSET), ch * (1 - 2 * INSET));
+    }
+    // corner handles
+    ctx.fillStyle = '#7fb2ff'; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    for (const [hx, hy] of [[bx, by], [bx + bw, by], [bx, by + bh], [bx + bw, by + bh]]){
+      ctx.fillRect(hx - 5, hy - 5, 10, 10); ctx.strokeRect(hx - 5, hy - 5, 10, 10);
+    }
+    // what was read, and the taps
+    if (lastRead && origin === 'read'){
+      const r = Math.max(7, Math.min(13, Math.min(cw, ch) * 0.16));
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++){
+        const k = i * 4 + j, v = board[i][j];
+        const cx = bx + j * cw + Math.max(r + 3, cw * 0.18), cy = by + i * ch + Math.max(r + 3, ch * 0.18);
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = TILE_FILL[v]; ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
+        if (!lastRead.locked.has(k) && lastRead.amb[k]){
+          ctx.setLineDash([3, 3]); ctx.strokeStyle = '#ffcc4d'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(cx, cy, r + 4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.fillStyle = TILE_INK[v];
+        ctx.font = `700 ${Math.round(r * 0.95)}px ui-monospace, Menlo, monospace`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(label(v), cx, cy + 0.5);
+      }
+      const s = solution;
+      // Row counts go outside the box on whichever side has room; column counts above, else below.
+      const roomL = bx, roomR = V.cssW - (bx + bw), roomT = by, roomB = V.cssH - (by + bh);
+      const rowX = roomL >= 36 ? bx - 19 : roomR >= 36 ? bx + bw + 19 : bx + bw - 18;
+      const colY = roomT >= 28 ? by - 14 : roomB >= 28 ? by + bh + 14 : by + bh - 13;
+      for (let i = 0; i < 4; i++) if (s.rows[i]) pill(ctx, rowX, by + ch * (i + 0.5), `×${s.rows[i]}`, '#2c53c4', '#fff');
+      for (let j = 0; j < 4; j++) if (s.cols[j]) pill(ctx, bx + cw * (j + 0.5), colY, `×${s.cols[j]}`, '#2c53c4', '#fff');
+    }
+    ctx.restore();
+  }
+  function drawView(){
+    if (!source) return;
+    layoutView();
+    if (!V) return;
+    vctx.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+    vctx.clearRect(0, 0, V.cssW, V.cssH);
+    try { vctx.drawImage(source.el, V.x, V.y, V.w, V.h, 0, 0, V.cssW, V.cssH); } catch {}
+    if (rect) drawOverlay(vctx);
+  }
+  let rafId = 0, lastFrame = 0;
+  function loop(ts){
+    if (!source || source.kind !== 'video'){ rafId = 0; return; }
+    if (ts - lastFrame >= 33){ drawView(); lastFrame = ts; }
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // ---------- box editing ----------
+  function evPoint(e){
+    const b = view.getBoundingClientRect();
+    const cx = e.clientX - b.left, cy = e.clientY - b.top;
+    return { sx: V.x + cx / V.s, sy: V.y + cy / V.s, cx, cy };
+  }
+  function hitTest(p){
+    if (!rect || !V) return 'draw';
+    const [bx, by] = toCss(rect.x, rect.y), bw = rect.w * V.s, bh = rect.h * V.s;
+    const corners = { nw: [bx, by], ne: [bx + bw, by], sw: [bx, by + bh], se: [bx + bw, by + bh] };
+    for (const [name, [hx, hy]] of Object.entries(corners)){
+      if (Math.abs(p.cx - hx) <= 14 && Math.abs(p.cy - hy) <= 14) return name;
+    }
+    if (p.cx >= bx && p.cx <= bx + bw && p.cy >= by && p.cy <= by + bh) return 'move';
+    return 'draw';
+  }
+  const CURSORS = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', move: 'move', draw: 'crosshair' };
+  view.addEventListener('pointerdown', (e) => {
+    if (!source || !V) return;
+    e.preventDefault();
+    view.focus();
+    try { view.setPointerCapture(e.pointerId); } catch {}
+    frozenView = { x: V.x, y: V.y, w: V.w, h: V.h };
+    const p = evPoint(e);
+    drag = { mode: hitTest(p), start: p, rect0: rect ? { ...rect } : null };
+  });
+  view.addEventListener('pointermove', (e) => {
+    if (!source || !V) return;
+    const p = evPoint(e);
+    if (!drag){ view.style.cursor = CURSORS[hitTest(p)]; return; }
+    const dx = p.sx - drag.start.sx, dy = p.sy - drag.start.sy, r0 = drag.rect0;
+    const minS = 16 / V.s;
+    if (drag.mode === 'draw'){
+      const x0 = Math.max(0, Math.min(source.w, drag.start.sx)), y0 = Math.max(0, Math.min(source.h, drag.start.sy));
+      const x1 = Math.max(0, Math.min(source.w, p.sx)), y1 = Math.max(0, Math.min(source.h, p.sy));
+      rect = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+    } else if (drag.mode === 'move'){
+      rect = clampRect({ x: r0.x + dx, y: r0.y + dy, w: r0.w, h: r0.h });
+    } else {
+      let L = r0.x, T = r0.y, R = r0.x + r0.w, B = r0.y + r0.h;
+      if (drag.mode.includes('w')) L = Math.min(R - minS, Math.max(0, L + dx));
+      if (drag.mode.includes('e')) R = Math.max(L + minS, Math.min(source.w, R + dx));
+      if (drag.mode.includes('n')) T = Math.min(B - minS, Math.max(0, T + dy));
+      if (drag.mode.includes('s')) B = Math.max(T + minS, Math.min(source.h, B + dy));
+      rect = { x: L, y: T, w: R - L, h: B - T };
+    }
+    if (source.kind === 'image') drawView();
+  });
+  function endDrag(e){
+    if (!drag) return;
+    try { view.releasePointerCapture(e.pointerId); } catch {}
+    if (drag.mode === 'draw' && (!rect || rect.w * V.s < 16 || rect.h * V.s < 16)) rect = drag.rect0;
+    drag = null; frozenView = null;
+    if (rect){ rect = clampRect(rect); saveRect(); doRead(); }
+    updateControls();
+    drawView();
+  }
+  view.addEventListener('pointerup', endDrag);
+  view.addEventListener('pointercancel', endDrag);
+
+  let keyTimer = 0;
+  view.addEventListener('keydown', (e) => {
+    if (!rect || !source) return;
+    const step = (e.shiftKey ? 10 : 1) / Math.max(V ? V.s : 1, 0.0001);
+    let used = true;
+    if (e.key === 'ArrowLeft') rect.x -= step;
+    else if (e.key === 'ArrowRight') rect.x += step;
+    else if (e.key === 'ArrowUp') rect.y -= step;
+    else if (e.key === 'ArrowDown') rect.y += step;
+    else if (e.key === '+' || e.key === '='){ rect.x -= step; rect.y -= step; rect.w += 2 * step; rect.h += 2 * step; }
+    else if (e.key === '-' || e.key === '_'){ rect.x += step; rect.y += step; rect.w -= 2 * step; rect.h -= 2 * step; }
+    else used = false;
+    if (!used) return;
+    e.preventDefault();
+    rect = clampRect(rect);
+    drawView();
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(() => { saveRect(); doRead(); }, 160);
+  });
+
+  // ---------- sources ----------
+  function setSource(el, kind, w, h){
+    source = { el, kind, w, h };
+    rect = loadRect();
+    $('emptyStage').hidden = true;
+    view.hidden = false;
+    const st = $('srcStatus');
+    st.textContent = `${kind === 'video' ? 'Live' : 'Screenshot'} · ${w}×${h}`;
+    st.classList.toggle('live', kind === 'video');
+    updateControls();
+    drawView();
+    if (rect) doRead();
+    if (kind === 'video' && !rafId) rafId = requestAnimationFrame(loop);
+  }
+  function updateControls(){
+    $('btnRead').disabled = !(source && rect);
+    $('boxHint').textContent = !source
+      ? 'Once the screen shows up, drag a box around the 16 tiles.'
+      : rect
+        ? 'Drag inside the box to move it, drag a corner to resize, or use the arrow keys (Shift for bigger steps, + and − to resize). The box is remembered.'
+        : 'Drag a box around the 16 tiles, from the outer edge of the top-left tile to the outer edge of the bottom-right tile.';
+  }
+  function showNote(html){ const n = $('capNote'); n.innerHTML = html; n.hidden = !html; }
+
+  const BLOCKED_NOTE = '<b>Live capture is blocked in this view.</b> Paste a screenshot instead (<kbd>⌃</kbd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>4</kbd>, <kbd>Space</kbd>, click the mirroring window, then <kbd>⌘</kbd><kbd>V</kbd> here), or open the standalone copy of this page to capture live.';
+  function captureAllowedHere(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return false;
+    try {
+      const fp = document.permissionsPolicy || document.featurePolicy;
+      if (fp && typeof fp.allowsFeature === 'function' && !fp.allowsFeature('display-capture')) return false;
+    } catch {}
+    return true;
+  }
+  async function startCapture(){
+    if (!captureAllowedHere()){ showNote(BLOCKED_NOTE); return; }
+    showNote('');
+    let s;
+    try {
+      s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 } }, audio: false });
+    } catch (err){
+      let framed = false;
+      try { framed = window.self !== window.top; } catch { framed = true; }
+      if (framed) showNote(BLOCKED_NOTE);
+      else showNote('<b>Capture did not start.</b> Press Capture window again and pick the iPhone Mirroring window. On a Mac, the browser may also need Screen Recording permission in System Settings → Privacy & Security.');
+      return;
+    }
+    stopCapture(true);
+    stream = s;
+    video.srcObject = s;
+    const track = s.getVideoTracks()[0];
+    try { if ('contentHint' in track) track.contentHint = 'detail'; } catch {}
+    track.addEventListener('ended', () => stopCapture());
+    try { await video.play(); } catch {}
+    const ready = () => {
+      if (!video.videoWidth){ requestAnimationFrame(ready); return; }
+      setSource(video, 'video', video.videoWidth, video.videoHeight);
+    };
+    ready();
+    $('btnStop').hidden = false;
+    $('btnCapture').textContent = 'Change window';
+  }
+  function stopCapture(silent){
+    if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+    video.srcObject = null;
+    $('btnStop').hidden = true;
+    $('btnCapture').textContent = 'Capture window';
+    if (source && source.kind === 'video' && !silent){
+      source = null;
+      view.hidden = true;
+      $('emptyStage').hidden = false;
+      $('srcStatus').textContent = 'No screen yet';
+      $('srcStatus').classList.remove('live');
+      updateControls();
+    }
+  }
+  // Re-read the size if the shared window is resized
+  video.addEventListener('resize', () => {
+    if (source && source.kind === 'video' && video.videoWidth && (video.videoWidth !== source.w || video.videoHeight !== source.h)){
+      source.w = video.videoWidth; source.h = video.videoHeight;
+      rect = loadRect();
+      $('srcStatus').textContent = `Live · ${source.w}×${source.h}`;
+      updateControls();
+    }
+  });
+
+  function loadImageBlob(blob){
+    if (!blob || !/^image\//.test(blob.type || 'image/')) return;
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      if (stream) stopCapture(true);
+      setSource(img, 'image', img.naturalWidth, img.naturalHeight);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); showNote('<b>That file could not be opened as an image.</b> Try a PNG or JPEG screenshot.'); };
+    img.src = url;
+  }
+
+  $('btnCapture').addEventListener('click', startCapture);
+  $('btnStop').addEventListener('click', () => stopCapture());
+  $('fileInput').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadImageBlob(f); e.target.value = ''; });
+  window.addEventListener('paste', (e) => {
+    const items = e.clipboardData ? Array.from(e.clipboardData.items) : [];
+    const it = items.find(x => x.type && x.type.startsWith('image/'));
+    if (it){ e.preventDefault(); loadImageBlob(it.getAsFile()); }
+  });
+  stage.addEventListener('dragover', (e) => { e.preventDefault(); stage.classList.add('drop'); });
+  stage.addEventListener('dragleave', () => stage.classList.remove('drop'));
+  stage.addEventListener('drop', (e) => {
+    e.preventDefault(); stage.classList.remove('drop');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadImageBlob(f);
+  });
+  $('btnRead').addEventListener('click', () => { if (!doRead()) showNote('<b>The screen is not ready yet.</b> Wait a moment for the capture to start, then press Read board.'); });
+  $('chkZoom').addEventListener('change', drawView);
+  window.addEventListener('resize', () => { if (source) drawView(); });
+  try { new ResizeObserver(() => { if (source && source.kind === 'image') drawView(); }).observe(stage); } catch {}
+
+  // Keep reading: apply a new read once the screen has shown the same board for three reads in a row
+  let cand = null, candCount = 0;
+  setInterval(() => {
+    if (!$('chkAuto').checked || !source || source.kind !== 'video' || !rect || drag) return;
+    const r = readNow();
+    if (!r) return;
+    const key = r.pred.join(',');
+    const cur = lastRead && origin === 'read' ? lastRead.pred.join(',') : null;
+    if (key === cur){ cand = null; candCount = 0; return; }
+    if (key === cand) candCount++; else { cand = key; candCount = 1; }
+    if (candCount >= 3){ applyRead(r); cand = null; candCount = 0; renderAll(); }
+  }, 250);
+
+  function renderAll(){
+    renderBoard();
+    renderResult();
+    renderCalib();
+    if (source && source.kind === 'image') drawView();
+  }
+
+  if (!captureAllowedHere()) showNote(BLOCKED_NOTE);
+  updateControls();
+  renderAll();
+
+  // Small hook for automated checks
+  window.SchoolSolver = {
+    solve, cyc,
+    loadImageBlob,
+    setRect(r){ rect = clampRect(r); saveRect(); updateControls(); drawView(); },
+    read: doRead,
+    state: () => ({ board: board.map(r => r.slice()), origin, solution, amb: lastRead ? lastRead.amb.slice() : null, samples: samples.length, learnedAll: learnedAll(), source: source && { kind: source.kind, w: source.w, h: source.h } })
+  };
+})();
+</script>
+
+</body>
+</html>
